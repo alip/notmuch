@@ -36,6 +36,7 @@
  * keep notmuch.c from looking into any internals, (which helps us
  * develop notmuch.h into a plausible library interface).
  */
+#include "maildir.h"
 #include "xutil.h"
 
 #include <stddef.h>
@@ -118,6 +119,9 @@ notmuch_count_command (void *ctx, int argc, char *argv[]);
 
 int
 notmuch_dump_command (void *ctx, int argc, char *argv[]);
+
+int
+notmuch_link_command (void *ctx, int argc, char *argv[]);
 
 int
 notmuch_new_command (void *ctx, int argc, char *argv[]);

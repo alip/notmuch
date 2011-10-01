@@ -278,6 +278,7 @@ notmuch_client_srcs =		\
 	notmuch-config.c	\
 	notmuch-count.c		\
 	notmuch-dump.c		\
+	notmuch-link.c		\
 	notmuch-new.c		\
 	notmuch-reply.c		\
 	notmuch-restore.c	\
@@ -289,6 +290,7 @@ notmuch_client_srcs =		\
 	query-string.c		\
 	show-message.c		\
 	json.c			\
+	maildir.c		\
 	xutil.c
 
 notmuch_client_modules = $(notmuch_client_srcs:.c=.o)
