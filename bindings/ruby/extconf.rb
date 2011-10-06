@@ -5,6 +5,9 @@
 
 require 'mkmf'
 
+# Talloc Library
+pkg_config('talloc')
+
 # Notmuch Library
 find_header('notmuch.h', '../../lib')
 find_library('notmuch', 'notmuch_database_create', '../../lib')

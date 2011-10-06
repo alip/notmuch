@@ -21,24 +21,6 @@
 #include "defs.h"
 
 /*
- * call-seq: TAGS.destroy! => nil
- *
- * Destroys the tags, freeing all resources allocated for it.
- */
-VALUE
-notmuch_rb_tags_destroy (VALUE self)
-{
-    notmuch_tags_t *tags;
-
-    Data_Get_Notmuch_Tags (self, tags);
-
-    notmuch_tags_destroy (tags);
-    DATA_PTR (self) = NULL;
-
-    return Qnil;
-}
-
-/*
  * call-seq: TAGS.each {|item| block } => TAGS
  *
  * Calls +block+ once for each element in +self+, passing that element as a
@@ -50,7 +32,7 @@ notmuch_rb_tags_each (VALUE self)
     const char *tag;
     notmuch_tags_t *tags;
 
-    Data_Get_Notmuch_Tags (self, tags);
+    Data_Get_Notmuch_Reference (self, notmuch_tags_t, tags);
 
     for (; notmuch_tags_valid (tags); notmuch_tags_move_to_next (tags)) {
 	tag = notmuch_tags_get (tags);

@@ -20,12 +20,6 @@
 
 #include "defs.h"
 
-VALUE
-notmuch_rb_database_alloc (VALUE klass)
-{
-    return Data_Wrap_Struct (klass, NULL, NULL, NULL);
-}
-
 /*
  * call-seq: Notmuch::Database.new(path [, {:create => false, :mode => Notmuch::MODE_READ_ONLY}]) => DB
  *
@@ -42,6 +36,7 @@ notmuch_rb_database_initialize (int argc, VALUE *argv, VALUE self)
     int create, mode;
     VALUE pathv, hashv;
     VALUE modev;
+    notmuch_rb_reference_t *reference;
 
     /* Check arguments */
     rb_scan_args (argc, argv, "11", &pathv, &hashv);
@@ -72,10 +67,15 @@ notmuch_rb_database_initialize (int argc, VALUE *argv, VALUE self)
 	mode = NOTMUCH_DATABASE_MODE_READ_ONLY;
     }
 
-    Check_Type (self, T_DATA);
-    DATA_PTR (self) = create ? notmuch_database_create (path) : notmuch_database_open (path, mode);
-    if (!DATA_PTR (self))
+    Data_Get_Struct (self, notmuch_rb_reference_t, reference);
+    reference->ref = create ? notmuch_database_create (path) : notmuch_database_open (path, mode);
+    if (!reference->ref)
 	rb_raise (notmuch_rb_eDatabaseError, "Failed to open database");
+
+    /* notmuch_rb_refalloc() does not increase reference count,
+     * because the object is only now available. So we do it here.
+     */
+    talloc_increase_ref_count(reference->ref);
 
     return self;
 }
@@ -96,24 +96,7 @@ notmuch_rb_database_open (int argc, VALUE *argv, VALUE klass)
     if (!rb_block_given_p ())
 	return obj;
 
-    return rb_ensure (rb_yield, obj, notmuch_rb_database_close, obj);
-}
-
-/*
- * call-seq: DB.close => nil
- *
- * Close the notmuch database.
- */
-VALUE
-notmuch_rb_database_close (VALUE self)
-{
-    notmuch_database_t *db;
-
-    Data_Get_Notmuch_Database (self, db);
-    notmuch_database_close (db);
-    DATA_PTR (self) = NULL;
-
-    return Qnil;
+    return rb_ensure (rb_yield, obj, notmuch_rb_refdestroy, obj);
 }
 
 /*
@@ -126,7 +109,7 @@ notmuch_rb_database_path (VALUE self)
 {
     notmuch_database_t *db;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     return rb_str_new2 (notmuch_database_get_path (db));
 }
@@ -141,7 +124,7 @@ notmuch_rb_database_version (VALUE self)
 {
     notmuch_database_t *db;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     return INT2FIX (notmuch_database_get_version (db));
 }
@@ -156,7 +139,7 @@ notmuch_rb_database_needs_upgrade (VALUE self)
 {
     notmuch_database_t *db;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     return notmuch_database_needs_upgrade (db) ? Qtrue : Qfalse;
 }
@@ -184,7 +167,7 @@ notmuch_rb_database_upgrade (VALUE self)
     notmuch_database_t *db;
     VALUE block;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     if (rb_block_given_p ()) {
 	pnotify = notmuch_rb_upgrade_notify;
@@ -210,7 +193,7 @@ notmuch_rb_database_begin_atomic (VALUE self)
     notmuch_status_t ret;
     notmuch_database_t *db;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     ret = notmuch_database_begin_atomic (db);
     notmuch_rb_status_raise (ret);
@@ -229,7 +212,7 @@ notmuch_rb_database_end_atomic (VALUE self)
     notmuch_status_t ret;
     notmuch_database_t *db;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     ret = notmuch_database_end_atomic (db);
     notmuch_rb_status_raise (ret);
@@ -240,7 +223,7 @@ notmuch_rb_database_end_atomic (VALUE self)
 /*
  * call-seq: DB.get_directory(path) => DIR
  *
- * Retrieve a directory object from the database for 'path'
+ * Retrieve a directory reference from the database for 'path'
  */
 VALUE
 notmuch_rb_database_get_directory (VALUE self, VALUE pathv)
@@ -249,7 +232,7 @@ notmuch_rb_database_get_directory (VALUE self, VALUE pathv)
     notmuch_directory_t *dir;
     notmuch_database_t *db;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     SafeStringValue (pathv);
     path = RSTRING_PTR (pathv);
@@ -258,7 +241,7 @@ notmuch_rb_database_get_directory (VALUE self, VALUE pathv)
     if (!dir)
         rb_raise (notmuch_rb_eXapianError, "Xapian exception");
 
-    return Data_Wrap_Struct (notmuch_rb_cDirectory, NULL, NULL, dir);
+    return notmuch_rb_reference_wrap (notmuch_rb_cDirectory, dir);
 }
 
 /*
@@ -277,14 +260,14 @@ notmuch_rb_database_add_message (VALUE self, VALUE pathv)
     notmuch_message_t *message;
     notmuch_database_t *db;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     SafeStringValue (pathv);
     path = RSTRING_PTR (pathv);
 
     ret = notmuch_database_add_message (db, path, &message);
     notmuch_rb_status_raise (ret);
-    return rb_assoc_new (Data_Wrap_Struct (notmuch_rb_cMessage, NULL, NULL, message),
+    return rb_assoc_new (notmuch_rb_reference_wrap (notmuch_rb_cMessage, message),
         (ret == NOTMUCH_STATUS_DUPLICATE_MESSAGE_ID) ? Qtrue : Qfalse);
 }
 
@@ -303,7 +286,7 @@ notmuch_rb_database_remove_message (VALUE self, VALUE pathv)
     notmuch_status_t ret;
     notmuch_database_t *db;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     SafeStringValue (pathv);
     path = RSTRING_PTR (pathv);
@@ -326,7 +309,7 @@ notmuch_rb_database_find_message (VALUE self, VALUE idv)
     notmuch_database_t *db;
     notmuch_message_t *message;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     SafeStringValue (idv);
     id = RSTRING_PTR (idv);
@@ -335,7 +318,7 @@ notmuch_rb_database_find_message (VALUE self, VALUE idv)
     notmuch_rb_status_raise (ret);
 
     if (message)
-        return Data_Wrap_Struct (notmuch_rb_cMessage, NULL, NULL, message);
+        return notmuch_rb_reference_wrap (notmuch_rb_cMessage, message);
     return Qnil;
 }
 
@@ -352,7 +335,7 @@ notmuch_rb_database_find_message_by_filename (VALUE self, VALUE pathv)
     notmuch_database_t *db;
     notmuch_message_t *message;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     SafeStringValue (pathv);
     path = RSTRING_PTR (pathv);
@@ -361,14 +344,14 @@ notmuch_rb_database_find_message_by_filename (VALUE self, VALUE pathv)
     notmuch_rb_status_raise (ret);
 
     if (message)
-        return Data_Wrap_Struct (notmuch_rb_cMessage, NULL, NULL, message);
+        return notmuch_rb_reference_wrap (notmuch_rb_cMessage, message);
     return Qnil;
 }
 
 /*
  * call-seq: DB.query(query) => QUERY
  *
- * Retrieve a query object for the query string 'query'
+ * Retrieve a query reference for the query string 'query'
  */
 VALUE
 notmuch_rb_database_query_create (VALUE self, VALUE qstrv)
@@ -377,7 +360,7 @@ notmuch_rb_database_query_create (VALUE self, VALUE qstrv)
     notmuch_query_t *query;
     notmuch_database_t *db;
 
-    Data_Get_Notmuch_Database (self, db);
+    Data_Get_Notmuch_Reference (self, notmuch_database_t, db);
 
     SafeStringValue (qstrv);
     qstr = RSTRING_PTR (qstrv);
@@ -386,5 +369,5 @@ notmuch_rb_database_query_create (VALUE self, VALUE qstrv)
     if (!query)
         rb_raise (notmuch_rb_eMemoryError, "Out of memory");
 
-    return Data_Wrap_Struct (notmuch_rb_cQuery, NULL, NULL, query);
+    return notmuch_rb_reference_wrap (notmuch_rb_cQuery, query);
 }

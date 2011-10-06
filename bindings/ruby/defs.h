@@ -21,9 +21,17 @@
 #ifndef DEFS_H
 #define DEFS_H
 
+#include <stdlib.h>
+#include <talloc.h>
 #include <notmuch.h>
 #include <ruby.h>
 
+typedef struct notmuch_rb_reference {
+    VALUE val;
+    void *ref;
+} notmuch_rb_reference_t;
+
+VALUE notmuch_rb_cReference;
 VALUE notmuch_rb_cDatabase;
 VALUE notmuch_rb_cDirectory;
 VALUE notmuch_rb_cFileNames;
@@ -55,76 +63,15 @@ ID ID_db_mode;
 # define RSTRING_PTR(v) (RSTRING((v))->ptr)
 #endif /* !defined (RSTRING_PTR) */
 
-#define Data_Get_Notmuch_Database(obj, ptr)			\
-    do {							\
-	Check_Type ((obj), T_DATA);				\
-	if (DATA_PTR ((obj)) == NULL)				\
-	rb_raise (rb_eRuntimeError, "database closed");		\
-	Data_Get_Struct ((obj), notmuch_database_t, (ptr));	\
-    } while (0)
+/* reference.c */
+void *notmuch_rb_refget (VALUE self);
+VALUE notmuch_rb_refmake (VALUE klass, void *ref);
+VALUE notmuch_rb_refalloc (VALUE klass);
+VALUE notmuch_rb_refdestroy (VALUE self);
 
-#define Data_Get_Notmuch_Directory(obj, ptr)			\
-    do {							\
-	Check_Type ((obj), T_DATA);				\
-	if (DATA_PTR ((obj)) == NULL)				\
-	rb_raise (rb_eRuntimeError, "directory destroyed");	\
-	Data_Get_Struct ((obj), notmuch_directory_t, (ptr));	\
-    } while (0)
-
-#define Data_Get_Notmuch_FileNames(obj, ptr)			\
-    do {							\
-	Check_Type ((obj), T_DATA);				\
-	if (DATA_PTR ((obj)) == NULL)				\
-	rb_raise (rb_eRuntimeError, "filenames destroyed");	\
-	Data_Get_Struct ((obj), notmuch_filenames_t, (ptr));	\
-    } while (0)
-
-#define Data_Get_Notmuch_Query(obj, ptr)			\
-    do {							\
-	Check_Type ((obj), T_DATA);				\
-	if (DATA_PTR ((obj)) == NULL)				\
-	rb_raise (rb_eRuntimeError, "query destroyed");		\
-	Data_Get_Struct ((obj), notmuch_query_t, (ptr));	\
-    } while (0)
-
-#define Data_Get_Notmuch_Threads(obj, ptr)			\
-    do {							\
-	Check_Type ((obj), T_DATA);				\
-	if (DATA_PTR ((obj)) == NULL)				\
-	rb_raise (rb_eRuntimeError, "threads destroyed");	\
-	Data_Get_Struct ((obj), notmuch_threads_t, (ptr));	\
-    } while (0)
-
-#define Data_Get_Notmuch_Messages(obj, ptr)			\
-    do {							\
-	Check_Type ((obj), T_DATA);				\
-	if (DATA_PTR ((obj)) == NULL)				\
-	rb_raise (rb_eRuntimeError, "messages destroyed");	\
-	Data_Get_Struct ((obj), notmuch_messages_t, (ptr));	\
-    } while (0)
-
-#define Data_Get_Notmuch_Thread(obj, ptr)			\
-    do {							\
-	Check_Type ((obj), T_DATA);				\
-	if (DATA_PTR ((obj)) == NULL)				\
-	rb_raise (rb_eRuntimeError, "thread destroyed");	\
-	Data_Get_Struct ((obj), notmuch_thread_t, (ptr));	\
-    } while (0)
-
-#define Data_Get_Notmuch_Message(obj, ptr)			\
-    do {							\
-	Check_Type ((obj), T_DATA);				\
-	if (DATA_PTR ((obj)) == NULL)				\
-	rb_raise (rb_eRuntimeError, "message destroyed");	\
-	Data_Get_Struct ((obj), notmuch_message_t, (ptr));	\
-    } while (0)
-
-#define Data_Get_Notmuch_Tags(obj, ptr)			\
-    do {						\
-	Check_Type ((obj), T_DATA);			\
-	if (DATA_PTR ((obj)) == NULL)			\
-	rb_raise (rb_eRuntimeError, "tags destroyed");	\
-	Data_Get_Struct ((obj), notmuch_tags_t, (ptr));	\
+#define Data_Get_Notmuch_Reference(obj, type, ptr)	    \
+    do {						    \
+	(ptr) = (type *) notmuch_rb_refget ((obj));	\
     } while (0)
 
 /* status.c */
@@ -132,9 +79,6 @@ void
 notmuch_rb_status_raise (notmuch_status_t status);
 
 /* database.c */
-VALUE
-notmuch_rb_database_alloc (VALUE klass);
-
 VALUE
 notmuch_rb_database_initialize (int argc, VALUE *argv, VALUE klass);
 
@@ -182,9 +126,6 @@ notmuch_rb_database_query_create (VALUE self, VALUE qstrv);
 
 /* directory.c */
 VALUE
-notmuch_rb_directory_destroy (VALUE self);
-
-VALUE
 notmuch_rb_directory_get_mtime (VALUE self);
 
 VALUE
@@ -198,15 +139,9 @@ notmuch_rb_directory_get_child_directories (VALUE self);
 
 /* filenames.c */
 VALUE
-notmuch_rb_filenames_destroy (VALUE self);
-
-VALUE
 notmuch_rb_filenames_each (VALUE self);
 
 /* query.c */
-VALUE
-notmuch_rb_query_destroy (VALUE self);
-
 VALUE
 notmuch_rb_query_get_sort (VALUE self);
 
@@ -224,15 +159,9 @@ notmuch_rb_query_search_messages (VALUE self);
 
 /* threads.c */
 VALUE
-notmuch_rb_threads_destroy (VALUE self);
-
-VALUE
 notmuch_rb_threads_each (VALUE self);
 
 /* messages.c */
-VALUE
-notmuch_rb_messages_destroy (VALUE self);
-
 VALUE
 notmuch_rb_messages_each (VALUE self);
 
@@ -240,9 +169,6 @@ VALUE
 notmuch_rb_messages_collect_tags (VALUE self);
 
 /* thread.c */
-VALUE
-notmuch_rb_thread_destroy (VALUE self);
-
 VALUE
 notmuch_rb_thread_get_thread_id (VALUE self);
 
@@ -271,9 +197,6 @@ VALUE
 notmuch_rb_thread_get_tags (VALUE self);
 
 /* message.c */
-VALUE
-notmuch_rb_message_destroy (VALUE self);
-
 VALUE
 notmuch_rb_message_get_message_id (VALUE self);
 
@@ -326,9 +249,6 @@ VALUE
 notmuch_rb_message_thaw (VALUE self);
 
 /* tags.c */
-VALUE
-notmuch_rb_tags_destroy (VALUE self);
-
 VALUE
 notmuch_rb_tags_each (VALUE self);
 

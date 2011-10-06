@@ -21,24 +21,6 @@
 #include "defs.h"
 
 /*
- * call-seq: DIR.destroy! => nil
- *
- * Destroys the directory, freeing all resources allocated for it.
- */
-VALUE
-notmuch_rb_directory_destroy (VALUE self)
-{
-    notmuch_directory_t *dir;
-
-    Data_Get_Struct (self, notmuch_directory_t, dir);
-
-    notmuch_directory_destroy (dir);
-    DATA_PTR (self) = NULL;
-
-    return Qnil;
-}
-
-/*
  * call-seq: DIR.mtime => fixnum
  *
  * Returns the mtime of the directory or +0+ if no mtime has been previously
@@ -49,7 +31,7 @@ notmuch_rb_directory_get_mtime (VALUE self)
 {
     notmuch_directory_t *dir;
 
-    Data_Get_Notmuch_Directory (self, dir);
+    Data_Get_Notmuch_Reference (self, notmuch_directory_t, dir);
 
     return UINT2NUM (notmuch_directory_get_mtime (dir));
 }
@@ -65,7 +47,7 @@ notmuch_rb_directory_set_mtime (VALUE self, VALUE mtimev)
     notmuch_status_t ret;
     notmuch_directory_t *dir;
 
-    Data_Get_Notmuch_Directory (self, dir);
+    Data_Get_Notmuch_Reference (self, notmuch_directory_t, dir);
 
     if (!FIXNUM_P (mtimev))
 	rb_raise (rb_eTypeError, "First argument not a fixnum");
@@ -88,11 +70,11 @@ notmuch_rb_directory_get_child_files (VALUE self)
     notmuch_directory_t *dir;
     notmuch_filenames_t *fnames;
 
-    Data_Get_Notmuch_Directory (self, dir);
+    Data_Get_Notmuch_Reference (self, notmuch_directory_t, dir);
 
     fnames = notmuch_directory_get_child_files (dir);
 
-    return Data_Wrap_Struct (notmuch_rb_cFileNames, NULL, NULL, fnames);
+    return notmuch_rb_reference_wrap (notmuch_rb_cFileNames, fnames);
 }
 
 /*
@@ -107,9 +89,9 @@ notmuch_rb_directory_get_child_directories (VALUE self)
     notmuch_directory_t *dir;
     notmuch_filenames_t *fnames;
 
-    Data_Get_Notmuch_Directory (self, dir);
+    Data_Get_Notmuch_Reference (self, notmuch_directory_t, dir);
 
     fnames = notmuch_directory_get_child_directories (dir);
 
-    return Data_Wrap_Struct (notmuch_rb_cFileNames, NULL, NULL, fnames);
+    return notmuch_rb_reference_wrap (notmuch_rb_cFileNames, fnames);
 }

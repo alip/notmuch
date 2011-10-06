@@ -20,24 +20,6 @@
 
 #include "defs.h"
 
-/*
- * call-seq: THREADS.destroy! => nil
- *
- * Destroys the threads, freeing all resources allocated for it.
- */
-VALUE
-notmuch_rb_threads_destroy (VALUE self)
-{
-    notmuch_threads_t *threads;
-
-    Data_Get_Struct (self, notmuch_threads_t, threads);
-
-    notmuch_threads_destroy (threads);
-    DATA_PTR (self) = NULL;
-
-    return Qnil;
-}
-
 /* call-seq: THREADS.each {|item| block } => THREADS
  *
  * Calls +block+ once for each thread in +self+, passing that element as a
@@ -49,11 +31,11 @@ notmuch_rb_threads_each (VALUE self)
     notmuch_thread_t *thread;
     notmuch_threads_t *threads;
 
-    Data_Get_Notmuch_Threads (self, threads);
+    Data_Get_Notmuch_Reference (self, notmuch_threads_t, threads);
 
     for (; notmuch_threads_valid (threads); notmuch_threads_move_to_next (threads)) {
 	thread = notmuch_threads_get (threads);
-	rb_yield (Data_Wrap_Struct (notmuch_rb_cThread, NULL, NULL, thread));
+	rb_yield (notmuch_rb_reference_wrap (notmuch_rb_cThread, thread));
     }
 
     return self;

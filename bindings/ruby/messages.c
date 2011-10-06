@@ -20,24 +20,6 @@
 
 #include "defs.h"
 
-/*
- * call-seq: MESSAGES.destroy! => nil
- *
- * Destroys the messages, freeing all resources allocated for it.
- */
-VALUE
-notmuch_rb_messages_destroy (VALUE self)
-{
-    notmuch_messages_t *messages;
-
-    Data_Get_Notmuch_Messages (self, messages);
-
-    notmuch_messages_destroy (messages);
-    DATA_PTR (self) = NULL;
-
-    return Qnil;
-}
-
 /* call-seq: MESSAGES.each {|item| block } => MESSAGES
  *
  * Calls +block+ once for each message in +self+, passing that element as a
@@ -49,11 +31,11 @@ notmuch_rb_messages_each (VALUE self)
     notmuch_message_t *message;
     notmuch_messages_t *messages;
 
-    Data_Get_Notmuch_Messages (self, messages);
+    Data_Get_Notmuch_Reference (self, notmuch_messages_t, messages);
 
     for (; notmuch_messages_valid (messages); notmuch_messages_move_to_next (messages)) {
 	message = notmuch_messages_get (messages);
-	rb_yield (Data_Wrap_Struct (notmuch_rb_cMessage, NULL, NULL, message));
+	rb_yield (notmuch_rb_reference_wrap (notmuch_rb_cMessage, message));
     }
 
     return self;
@@ -70,11 +52,11 @@ notmuch_rb_messages_collect_tags (VALUE self)
     notmuch_tags_t *tags;
     notmuch_messages_t *messages;
 
-    Data_Get_Notmuch_Messages (self, messages);
+    Data_Get_Notmuch_Reference (self, notmuch_messages_t, messages);
 
     tags = notmuch_messages_collect_tags (messages);
     if (!tags)
 	rb_raise (notmuch_rb_eMemoryError, "Out of memory");
 
-    return Data_Wrap_Struct (notmuch_rb_cTags, NULL, NULL, tags);
+    return notmuch_rb_reference_wrap (notmuch_rb_cTags, tags);
 }

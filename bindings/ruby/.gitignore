@@ -4,3 +4,5 @@
 Makefile
 mkmf.log
 notmuch.so
+
+tmp.*
